@@ -57,8 +57,11 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
   def update(id:String): Action[JsValue] = Action.async(parse.json) { implicit request =>
     request.body.validate[DataModel] match {
       case JsSuccess(dataModel, _) =>
-        dataRepository.update(id, dataModel).map(_ => Accepted)
-      case JsError(_) => Future(BadRequest)
+        dataRepository.update(id, dataModel).map {
+          case result if result.wasAcknowledged() => Accepted
+          case result if !result.wasAcknowledged() => NotFound
+        }
+      case JsError(_) => Future.successful(BadRequest)
     }
   }
 

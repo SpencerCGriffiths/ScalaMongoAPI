@@ -6,6 +6,7 @@ import play.api.test.FakeRequest
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
+import play.api.mvc.Results.Accepted
 import play.api.test.Helpers._
 
 import scala.concurrent.Future
@@ -52,19 +53,57 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     }
   }
 
-  "ApplicationController .read()" should {
+  "ApplicationController .read" should {
 
+    "find a book in the database by id" in {
+      beforeEach()
+      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+      status(createdResult) shouldBe Status.CREATED
+
+      val readResult: Future[Result] = TestApplicationController.read("abcd")(FakeRequest())
+
+      status(readResult) shouldBe OK
+      contentAsJson(readResult).as[DataModel] shouldBe dataModel
+      afterEach()
+    }
   }
+
   "ApplicationController .update()" should {
 
+    "Update a database entry when the entry exists" in {
+      beforeEach()
+      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+      status(createdResult) shouldBe Status.CREATED
+
+      val updateResult: Future[Result] = TestApplicationController.update("abcd")(request)
+
+
+      status(updateResult) shouldBe ACCEPTED
+      afterEach()
+    }
   }
   "ApplicationController .delete()" should {
+    beforeEach()
+    val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+    val createdResult: Future[Result] = TestApplicationController.create()(request)
 
+    status(createdResult) shouldBe Status.CREATED
+
+    val updateResult: Future[Result] = TestApplicationController.delete("abcd")(FakeRequest())
+
+
+    status(updateResult) shouldBe ACCEPTED
+    afterEach()
   }
 
   "test name" should {
     "do something" in {
-
+      beforeEach()
+      afterEach()
     }
   }
 
