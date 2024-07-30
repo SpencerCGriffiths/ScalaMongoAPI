@@ -51,8 +51,12 @@ class DataRepository @Inject()(
 
   def read(id: String): Future[DataModel] =
     collection.find(byID(id)).headOption flatMap {
+      //^performs a query on the data and returns the result wrapped in an option
+      // ^Flat map is used to turn Some(data) to a Future(data)
       case Some(data) =>
         Future(data)
+        //^ This does not handle a None case
+        // ^ The function would would not return a future in this case
     }
 
   def update(id: String, book: DataModel): Future[result.UpdateResult] =
