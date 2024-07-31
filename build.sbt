@@ -18,3 +18,10 @@ libraryDependencies ++= Seq(
   "org.scalamock"          %% "scalamock"               % "5.2.0"             % Test,
   "org.scalatestplus.play" %% "scalatestplus-play"   % "5.1.0"          % Test
 )
+
+javaOptions ++= Seq(
+  "--illegal-access=warn",
+  "--add-opens", "java.base/java.lang=ALL-UNNAMED"
+)
+
+// ^ 31/7 12:01 removes the illegal reflective access operation has occured warning

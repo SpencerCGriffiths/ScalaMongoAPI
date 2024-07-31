@@ -70,7 +70,7 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
   def delete(id:String): Action[AnyContent] = Action.async { implicit request =>
   dataRepository.delete(id).map {
     case result if result.getDeletedCount == 0 => NotFound(Json.toJson("Data not found"))
-    case result if result.getDeletedCount > 0 =>  Accepted {Json.toJson(result.wasAcknowledged())}
+    case result if result.getDeletedCount > 0 =>  Accepted {Json.toJson("Entry has been removed")}
     //^ 31/7 10:54 - delete returns a delete count of 0 or more.
   }
   }

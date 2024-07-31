@@ -51,6 +51,15 @@ SOFTWARE.
 
 ---
 
+Notes: 
 
+Add notes on CURL with terminal such as:
+-X PUT: Specifies that the HTTP method to be used is PUT.
+-H "Content-Type: application/json": Sets the content type of the request to JSON.
+-d '{...}': Provides the JSON data to be sent with the request.
+"http://localhost:9000/api/update/1": The URL to which the PUT request is sent (assuming your endpoint for updating resources uses this pattern).
 
+curl -X DELETE -H "Content-Type: application/json" -d '{ "_id" : "1", "name" : "testNameUpdate", "description" : "testDescription", "pageCount" : 1 }' "http://localhost:9000/api/1" -i
+curl -X DELETE "localhost:9000/api/2"
 
+curl "localhost:9000/api" -i
