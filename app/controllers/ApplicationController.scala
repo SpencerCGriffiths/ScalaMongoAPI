@@ -49,8 +49,10 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
 
   def read(id: String): Action[AnyContent] = Action.async { implicit request =>
     dataRepository.read(id).map {
-      case dataModel => Ok {Json.toJson(dataModel)}
-      case _ => NotFound(Json.toJson("Data not found"))
+      case Some(dataModel) => Ok {Json.toJson(dataModel)}
+      case None => NotFound(Json.toJson("Data not found"))
+        // 31/7/24 10:14 - Not sure if we can Json this string, not currently tested for.
+
     }
   }
 
@@ -58,8 +60,8 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     request.body.validate[DataModel] match {
       case JsSuccess(dataModel, _) =>
         dataRepository.update(id, dataModel).map {
-          case result if result.wasAcknowledged() => Accepted
-          case result if !result.wasAcknowledged() => NotFound
+          case result if result.getMatchedCount == 0 => NotFound(Json.toJson("Data not found"))
+          case result if result.getMatchedCount == 1 => Accepted {Json.toJson(dataModel)}
         }
       case JsError(_) => Future.successful(BadRequest)
     }
@@ -67,9 +69,9 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
 
   def delete(id:String): Action[AnyContent] = Action.async { implicit request =>
   dataRepository.delete(id).map {
-    case result if result.wasAcknowledged() => Accepted // {Json.toJson(result.wasAcknowledged())}
-    //^ delete returns a result.DeleteResult -> if possible this returns true if not it returns false
-    case result if !result.wasAcknowledged() => NotFound(Json.toJson("Data not found")) //
+    case result if result.getDeletedCount == 0 => NotFound(Json.toJson("Data not found"))
+    case result if result.getDeletedCount > 0 =>  Accepted {Json.toJson(result.wasAcknowledged())}
+    //^ 31/7 10:54 - delete returns a delete count of 0 or more.
   }
   }
 }

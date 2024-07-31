@@ -7,6 +7,7 @@ case class DataModel(_id: String,
                      description: String,
                      pageCount: Int)
 
+
 object DataModel {
   implicit val formats: OFormat[DataModel] = Json.format[DataModel]
 }

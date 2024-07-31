@@ -10,6 +10,8 @@ import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.xml.dtd.ValidationException
+import scala.xml.parsing.FatalError
 
 
 // This creates a new DataRepository class and injects dependencies into it required for every Mongo Repository
@@ -49,22 +51,23 @@ class DataRepository @Inject()(
       Filters.equal("_id", id)
     )
 
-  def read(id: String): Future[DataModel] =
+  def read(id: String): Future[Option[DataModel]] =
     collection.find(byID(id)).headOption flatMap {
-      //^performs a query on the data and returns the result wrapped in an option
-      // ^Flat map is used to turn Some(data) to a Future(data)
-      case Some(data) =>
-        Future(data)
-        //^ This does not handle a None case
-        // ^ The function would would not return a future in this case
+      case Some(data) => Future.successful(Some(data))
+      case None => Future.successful(None)
+        //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option
     }
 
-  def update(id: String, book: DataModel): Future[result.UpdateResult] =
+  def update(id: String, book: DataModel): Future[result.UpdateResult] = {
     collection.replaceOne(
       filter = byID(id),
       replacement = book,
-      options = new ReplaceOptions().upsert(true) //What happens when we set this to false?
+      options = new ReplaceOptions().upsert(false)
+      // 31/7 10:30 When set to true a new document will be created when updating rather than returning an error
+      // 31/7 10:30 if set to false then a new document will not be created and no update unless the ID exists causing it to fail
     ).toFuture()
+    }
+
 
   def delete(id: String): Future[result.DeleteResult] =
     collection.deleteOne(

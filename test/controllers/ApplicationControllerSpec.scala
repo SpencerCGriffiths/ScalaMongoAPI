@@ -24,6 +24,12 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     100
   )
 
+  private val dataModelUpdate: DataModel = DataModel(
+    "abcd",
+    "test name2",
+    "test description2",
+    1002
+  )
   "ApplicationController .index()" should {
 
     // Testing the index() route of ApplicationController
@@ -51,6 +57,16 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       status(createdResult) shouldBe Status.CREATED
       afterEach()
     }
+
+    "return a bad request if body to create cannot be validated" in {
+      beforeEach()
+
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+      status(createdResult) shouldBe Status.BAD_REQUEST
+      afterEach()
+    }
   }
 
   "ApplicationController .read" should {
@@ -68,6 +84,13 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       contentAsJson(readResult).as[DataModel] shouldBe dataModel
       afterEach()
     }
+
+    "return a not found 404 if the book does not exist" in {
+      beforeEach()
+      val readResult: Future[Result] = TestApplicationController.read("abcd")(FakeRequest())
+      status(readResult) shouldBe NOT_FOUND
+      afterEach()
+    }
   }
 
   "ApplicationController .update()" should {
@@ -79,25 +102,71 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
 
       status(createdResult) shouldBe Status.CREATED
 
-      val updateResult: Future[Result] = TestApplicationController.update("abcd")(request)
+
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
+      val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
 
 
       status(updateResult) shouldBe ACCEPTED
       afterEach()
     }
+
+    "Return an error of NotFound when the item does not exist to be updated" in {
+      beforeEach()
+      // Entry with ID abcd has not been created yet to update
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
+      val updateResult: Future[Result] = TestApplicationController.update("1")(requestUpdate)
+
+
+      status(updateResult) shouldBe NOT_FOUND
+      afterEach()
+    }
+
+    "Return an error of BadRequest when the data to update is not valid Json" in {
+      beforeEach()
+      // Entry with ID abcd has been created but the data being sent to update isn't appropriate
+
+      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+      status(createdResult) shouldBe Status.CREATED
+
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson("This is not valid Json for dataModel"))
+      val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+
+
+      status(updateResult) shouldBe BAD_REQUEST
+      afterEach()
+    }
   }
+
+
   "ApplicationController .delete()" should {
-    beforeEach()
-    val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
-    val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-    status(createdResult) shouldBe Status.CREATED
+    "delete an individual entry in the data base with 202 Accepted response" in {
 
-    val updateResult: Future[Result] = TestApplicationController.delete("abcd")(FakeRequest())
+      beforeEach()
+      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+      status(createdResult) shouldBe Status.CREATED
+
+      val updateResult: Future[Result] = TestApplicationController.delete("abcd")(FakeRequest())
 
 
-    status(updateResult) shouldBe ACCEPTED
-    afterEach()
+      status(updateResult) shouldBe ACCEPTED
+      afterEach()
+    }
+
+    "Return a 404 not found if the ID to delete does not exist in the database" in {
+
+      beforeEach()
+      val updateResult: Future[Result] = TestApplicationController.delete("abcd")(FakeRequest())
+
+
+      status(updateResult) shouldBe NOT_FOUND
+      afterEach()
+    }
   }
 
   "test name" should {
