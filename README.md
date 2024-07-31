@@ -63,3 +63,7 @@ curl -X DELETE -H "Content-Type: application/json" -d '{ "_id" : "1", "name" : "
 curl -X DELETE "localhost:9000/api/2"
 
 curl "localhost:9000/api" -i
+
+
+understand more about injecting dependencies? 
+Why @Singleton etc?

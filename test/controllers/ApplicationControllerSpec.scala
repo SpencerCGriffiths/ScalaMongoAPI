@@ -1,5 +1,6 @@
 package controllers
 
+import Services.ApplicationService
 import baseSpec.BaseSpecWithApplication
 import models.DataModel
 import play.api.test.FakeRequest
@@ -14,7 +15,9 @@ import scala.concurrent.Future
 class ApplicationControllerSpec extends BaseSpecWithApplication{
 
   val TestApplicationController = new ApplicationController(
-    controllerComponents = component, dataRepository = repository
+    controllerComponents = component,
+    dataRepository = repository,
+    service = service
   )
 
   private val dataModel: DataModel = DataModel(
@@ -165,6 +168,20 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
 
 
       status(updateResult) shouldBe NOT_FOUND
+      afterEach()
+    }
+  }
+
+  "ApplicationController .getGoogleBook()" should {
+
+    "delete an individual entry in the data base with 202 Accepted response" in {
+
+      beforeEach()
+
+      val result: Future[Result] = TestApplicationController.getGoogleBook("flowers","inauthor")(FakeRequest())
+
+
+      status(result) shouldBe ACCEPTED
       afterEach()
     }
   }

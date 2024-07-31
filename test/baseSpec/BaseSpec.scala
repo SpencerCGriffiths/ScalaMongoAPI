@@ -1,5 +1,7 @@
 package baseSpec
 
+import Connectors.ApplicationConnector
+import Services.ApplicationService
 import akka.stream.Materializer
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
@@ -27,8 +29,8 @@ trait BaseSpecWithApplication extends BaseSpec with GuiceOneServerPerSuite with 
 
   lazy val component: MessagesControllerComponents = injector.instanceOf[MessagesControllerComponents]
   lazy val repository: DataRepository = injector.instanceOf[DataRepository]
-  //lazy val service: LibraryService = injector.instanceOf[LibraryService]
-  //lazy val connector: LibraryConnector = injector.instanceOf[LibraryConnector]
+  lazy val service: ApplicationService = injector.instanceOf[ApplicationService]
+  lazy val connector: ApplicationConnector = injector.instanceOf[ApplicationConnector]
 
   implicit val messagesApi = app.injector.instanceOf[MessagesApi]
   lazy val injector: Injector = app.injector

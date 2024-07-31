@@ -1,5 +1,6 @@
 package controllers
 
+import Services.ApplicationService
 import com.mongodb.client.result.DeleteResult
 import models.DataModel
 import play.api.http.Status.OK
@@ -13,7 +14,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 
 @Singleton
-class ApplicationController @Inject()(val controllerComponents: ControllerComponents, val dataRepository: DataRepository)(implicit val ec: ExecutionContext) extends BaseController {
+class ApplicationController @Inject()(val controllerComponents: ControllerComponents, val dataRepository: DataRepository, val service: ApplicationService)(implicit val ec: ExecutionContext) extends BaseController {
 
 
   def index(): Action[AnyContent] = Action.async { implicit request =>
@@ -66,6 +67,10 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
       case JsError(_) => Future.successful(BadRequest)
     }
   }
+  //  (updatedBook => Accepted)
+  //^ TODO 31/7  -14:30 SCG - Other variation of update return
+  //^ The above method could just return accepted however the way it is currently written allows for the appropriate Json but the object not to exist and gives more information.
+
 
   def delete(id:String): Action[AnyContent] = Action.async { implicit request =>
   dataRepository.delete(id).map {
@@ -73,5 +78,14 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     case result if result.getDeletedCount > 0 =>  Accepted {Json.toJson("Entry has been removed")}
     //^ 31/7 10:54 - delete returns a delete count of 0 or more.
   }
+  }
+
+  def getGoogleBook(search: String, term: String): Action[AnyContent] = Action.async { implicit request =>
+    service.getGoogleBook(search = search, term = term).map {
+      book => {
+        println(book)
+        Accepted}
+
+    }
   }
 }
