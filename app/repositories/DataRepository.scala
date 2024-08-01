@@ -1,6 +1,6 @@
 package repositories
 
-import models.DataModel
+import models.{APIError, DataModel}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.empty
 import org.mongodb.scala.model._
@@ -34,10 +34,17 @@ class DataRepository @Inject()(
 ) {
 
   // Each of these is a CRUD Function:
-  def index(): Future[Either[Int, Seq[DataModel]]]  =
-    collection.find().toFuture().map{
-      case books: Seq[DataModel] => Right(books)
-      case _ => Left(404)
+//  def index(): Future[Either[Int, Seq[DataModel]]]  =
+//    collection.find().toFuture().map{
+//      case books: Seq[DataModel] => Right(books)
+//      case _ => Left(404)
+//    }
+
+  def index(): Future[Either[APIError, Seq[DataModel]]] =
+    collection.find().toFuture().map { books =>
+      Right(books)
+       }. recover {
+      case e: Exception => Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path"))
     }
 
   def create(book: DataModel): Future[DataModel] =
@@ -52,7 +59,7 @@ class DataRepository @Inject()(
     )
 
   def read(id: String): Future[Option[DataModel]] =
-    collection.find(byID(id)).headOption flatMap {
+    collection.find(byID(id)).headOption() flatMap {
       case Some(data) => Future.successful(Some(data))
       case None => Future.successful(None)
         //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option

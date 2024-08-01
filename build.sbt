@@ -21,6 +21,8 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += ws
 
+libraryDependencies += ("org.typelevel"                %% "cats-core"                 % "2.3.0")
+
 //javaOptions ++= Seq(
 //  "--illegal-access=warn",
 //  "--add-opens", "java.base/java.lang=ALL-UNNAMED"

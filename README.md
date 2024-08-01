@@ -67,3 +67,4 @@ curl "localhost:9000/api" -i
 
 understand more about injecting dependencies? 
 Why @Singleton etc?
+What is EitherT

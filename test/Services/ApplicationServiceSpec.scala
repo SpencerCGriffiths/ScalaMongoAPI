@@ -2,11 +2,13 @@ package Services
 
 import Connectors.ApplicationConnector
 import baseSpec._
-import models.DataModel
+import cats.data.EitherT
+import models.{APIError, DataModel}
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.libs.json.{JsValue, Json, OFormat}
+import play.api.mvc.Results.Status
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.tools.nsc.interactive.Response
@@ -36,32 +38,44 @@ class ApplicationServiceSpec extends BaseSpec with MockFactory with ScalaFutures
 
     "return a book" in {
       (mockConnector.get[DataModel](_: String)(_: OFormat[DataModel], _: ExecutionContext))
+        //^ sets up a mock expectation or the get method of the mockConnector, The method takes a String (URL PARAM), 0Format, and a Execution context
         .expects(url, *, *)
-        // ^ .expects can take. this shows that the connector can expect any request in place of the parameter, this can also be any()
-        .returning(Future.successful(gameOfThrones.as[DataModel]))
-        //^ returning explicitly states what the connector returns
+        //^ specifies arguments for method call - url is specific, * is a wild card
+        .returning(EitherT(Future.successful(Right(gameOfThrones.as[DataModel])): Future[Either[APIError, DataModel]]))
+        //^ Sets up the mock return- A Future, containing a Right, with gameOfThrone > Wrapping in Either T indicates it could return an error
+        // ^ We explicitly state the type :
         .once()
-        // ^ .once shows how many times we can expect this response
+        // ^ This specifies that the method is called once
 
-      whenReady(testService.getGoogleBook(urlOverride = Some(url), search = "", term = "")) {
-        //^ When ready handles the future allowing us to wait for the future to complete
-        result => result shouldBe gameOfThrones.as[DataModel]
+      // Transforming EitherT to a Future that only contains the Right value or fails
+      val futureResult = testService.getGoogleBook(urlOverride = Some(url), search = "", term = "").value.flatMap {
+        // ^ call the method on testService with the provided params
+        // ^ This returns an EitherT[Future, APIError, DataModel]
+        // ^ .value converts to a Future[Either[APIError, DataModel]
+        // ^ .flatMap transforms this to a single outcome flattening to Future[Right] or Future[Left] to pattern match
+        case Right(value) => Future.successful(value)
+          //^ Pattern matching for a successful value or for a failed future due to the exception
+      }
+
+      // Using whenReady to wait for the future to complete and verify the result
+      whenReady(futureResult) { result =>
+        result shouldBe gameOfThrones.as[DataModel]
       }
       }
+
     "return an error" in {
       val url: String = "testUrl"
 
       (mockConnector.get[DataModel](_: String)(_: OFormat[DataModel], _: ExecutionContext))
         .expects(url, *, *)
-        .returning(Future.failed(new Exception("error")))
-        // ^ This creates a future that has failed. It gives this error a new Exception
+        .returning(EitherT(Future.successful(Left(APIError.BadAPIResponse(500, "Internal Server Error"))): Future[Either[APIError, DataModel]]))
+        // ^ This creates a future that has failed. It gives this error
         .once()
 
-      whenReady(testService.getGoogleBook(urlOverride = Some(url), search = "", term = "").failed) { failedResult =>
-        failedResult shouldBe a[Exception]
-        // TODO Information 31/7 20:26- RE a[Exception]
-        // ^ Alternatives for other cases could be more specific i.e. a[IllegalArgumentException], a[Throwable]
-        failedResult.getMessage shouldBe "error"
+      // Using whenReady to wait for the future to complete and verify the result
+      whenReady(testService.getGoogleBook(urlOverride = Some(url), search = "", term = "").value) {
+        case Left(error) => error shouldBe APIError.BadAPIResponse(500, "Internal Server Error")
+          // TODO 01/08 14:11 --- Why does this work??
       }
     }
     }

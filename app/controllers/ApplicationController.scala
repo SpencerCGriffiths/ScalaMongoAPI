@@ -2,7 +2,8 @@ package controllers
 
 import Services.ApplicationService
 import com.mongodb.client.result.DeleteResult
-import models.DataModel
+import models.APIError.BadAPIResponse
+import models.{APIError, DataModel}
 import play.api.http.Status.OK
 import play.api.libs.json.{JsError, JsSuccess, JsValue, Json}
 import play.api.mvc.{Action, AnyContent, BaseController, ControllerComponents}
@@ -24,9 +25,10 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     dataRepository.index().map{
       //^ calls the index method on dataRepository, which returns Future[Either[Int, Seq[DataModel]]]
       //^ .map is used to transform the Future once it completes
-      case Right(item: Seq[DataModel]) => Ok {Json.toJson(item)}
+      case Right(item: Seq[DataModel]) if item.nonEmpty => Ok {Json.toJson(item)}
+      case Right(item: Seq[DataModel]) if item.isEmpty => NoContent
         // ^ if the result is a Right with Seq[DataModel] it converts to Json and returns ok
-      case Left(error) => Status(error)(Json.toJson("Unable to find any books"))
+      case Left(error) => Status(error.httpResponseStatus)(Json.toJson(error.reason))
         //^ if the result is Left error it returns a response with status error and a message
     }
   }
@@ -80,12 +82,12 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
   }
   }
 
-  def getGoogleBook(search: String, term: String): Action[AnyContent] = Action.async { implicit request =>
-    service.getGoogleBook(search = search, term = term).map {
-      book => {
-        println(book)
-        Accepted}
+// Using the ApplicationConnector and ApplicationService:
 
+  def getGoogleBook(search: String, term: String): Action[AnyContent] = Action.async { implicit request =>
+    service.getGoogleBook(search = search, term = term).value.map {
+      case Right(book) => Accepted //Hint: This should be the same as before
+      case Left(error) => Status(error.httpResponseStatus)
     }
   }
 }

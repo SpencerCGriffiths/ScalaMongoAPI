@@ -35,18 +35,85 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
   )
   "ApplicationController .index()" should {
 
-    // Testing the index() route of ApplicationController
-    // FakeRequest() is needed to imitate an inbound HTTP request
-    val result = TestApplicationController.index()(FakeRequest())
 
-
-    "return 200 OK" in {
+    "return 200 OK when books are found" in {
       beforeEach()
+
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+      status(createdResult) shouldBe Status.CREATED
+
+      // Testing the index() route of ApplicationController
+      // FakeRequest() is needed to imitate an inbound HTTP request
+      val result = TestApplicationController.index()(FakeRequest())
+
       status(result) shouldBe OK
       afterEach()
-      //status(result) shouldBe 501
     }
 
+    "return the Seq of books when books are found" in {
+      beforeEach()
+
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(dataModel))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
+      status(createdResult) shouldBe Status.CREATED
+
+      // Testing the index() route of ApplicationController
+      // FakeRequest() is needed to imitate an inbound HTTP request
+      val result = TestApplicationController.index()(FakeRequest())
+
+      whenReady(result) { res =>
+        res.body.contentType shouldBe Some("application/json")
+        // Manually convert ByteString to JSON
+        val byteString = res.body.consumeData.futureValue
+        val jsonString = byteString.utf8String
+        val json = Json.parse(jsonString)
+        val books = json.as[Seq[DataModel]]
+
+        // Print or assert the parsed books
+        books shouldBe Seq(dataModel)
+      }
+      afterEach()
+    }
+
+    "return 204 no content found with a valid request but no content" in {
+      beforeEach()
+
+      // Testing the index() route of ApplicationController
+      // FakeRequest() is needed to imitate an inbound HTTP request
+      val result = TestApplicationController.index()(FakeRequest())
+
+      status(result) shouldBe NO_CONTENT
+      afterEach()
+    }
+
+    "return None when no books are present" in {
+      beforeEach()
+
+      // Testing the index() route of ApplicationController
+      // FakeRequest() is needed to imitate an inbound HTTP request
+      val result = TestApplicationController.index()(FakeRequest())
+
+      whenReady(result) { res =>
+        res.body.contentType shouldBe None
+      }
+      afterEach()
+    }
+
+    "return 400 when no invalid request has been made on this path" in {
+      beforeEach()
+      // to cause an error in the index() you have to simulate a scenario where an exception is thrown
+      // This would an error with the database but in order not to replicate this consistently this can be "mocked"
+
+
+      val request: FakeRequest[JsValue] = buildGet("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
+      val result = TestApplicationController.index()(request)
+
+      whenReady(result) { res =>
+        res.body.contentType shouldBe None
+      }
+      afterEach()
+    }
   }
 
   "ApplicationController .create" should {

@@ -2,7 +2,8 @@ package Services
 
 import com.google.inject.Singleton
 import Connectors.ApplicationConnector
-import models.DataModel
+import cats.data.EitherT
+import models.{APIError, DataModel}
 
 import java.awt.print.Book
 import javax.inject.Inject
@@ -11,7 +12,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class ApplicationService @Inject()(connector: ApplicationConnector) {
 
-  def getGoogleBook(urlOverride: Option[String] = None, search: String, term: String)(implicit ec: ExecutionContext): Future[DataModel] = {
+  def getGoogleBook(urlOverride: Option[String] = None, search: String, term: String)(implicit ec: ExecutionContext): EitherT[Future, APIError ,DataModel] = {
     connector.get[DataModel](urlOverride.getOrElse(s"https://www.googleapis.com/books/v1/volumes?q=$search%$term"))
     // Map it in to a book
   }
