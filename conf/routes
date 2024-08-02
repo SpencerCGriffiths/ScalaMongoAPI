@@ -6,7 +6,7 @@ GET     /assets/*file               controllers.Assets.versioned(path="/public",
 
 GET     /api                        controllers.ApplicationController.index()
 
-GET     /api/:id                    controllers.ApplicationController.read(id: String)
+GET     /api/read                controllers.ApplicationController.read()
 
 POST    /api                   controllers.ApplicationController.create()
 

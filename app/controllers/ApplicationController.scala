@@ -2,7 +2,7 @@ package controllers
 
 import Services.ApplicationService
 import com.mongodb.client.result.DeleteResult
-import models.APIError.BadAPIResponse
+import models.APIError.{BadAPIResponse, DatabaseError}
 import models.{APIError, DataModel}
 import play.api.http.Status.OK
 import play.api.libs.json.{JsError, JsSuccess, JsValue, Json}
@@ -52,14 +52,30 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     }
   }
 
-  // Could boost up this methdod and test that the parameters are valid etc.
+  // Could boost up this method and test that the parameters are valid etc.
 
-  def read(id: String): Action[AnyContent] = Action.async { implicit request =>
-    dataRepository.read(id).map {
-      case Some(dataModel) => Ok {Json.toJson(dataModel)}
+
+  def read(): Action[AnyContent] = Action.async { implicit request =>
+    val idParam = request.getQueryString("id")
+    val nameParam = request.getQueryString("name")
+
+    val rawResult: Future[Option[DataModel]] = (idParam, nameParam) match {
+      case (Some(id), _) => dataRepository.read(Some(id), None)
+      case (_, Some(name)) => dataRepository.read(None, Some(name))
+      case (None, None) => Future.failed(new IllegalArgumentException("Either id or name must be provided"))
+    }
+
+    rawResult.map {
+      case Some(dataModel) => Ok(Json.toJson(dataModel))
       case None => NotFound(Json.toJson("Data not found"))
-        // 31/7/24 10:14 - Not sure if we can Json this string, not currently tested for.
-
+    }.recover {
+      case e: IllegalArgumentException => BadRequest(Json.toJson(e.getMessage))
+      case _: Exception => {
+        val apiError = DatabaseError("Error msg: bad response from database")
+        Status(apiError.httpResponseStatus)(Json.toJson(apiError.reason))
+        // TODO 02/08 15:15 -> Database error to be added Done - no testing
+        // add a case of e: BadAPI request.. return in DataRepository would need to return this
+      }
     }
   }
 

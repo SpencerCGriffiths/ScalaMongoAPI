@@ -4,10 +4,11 @@ import Services.ApplicationService
 import baseSpec.BaseSpecWithApplication
 import jdk.net.SocketFlow
 import models.{APIError, DataModel}
+import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
 import play.api.test.FakeRequest
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.Result
+import play.api.mvc.{AnyContentAsEmpty, Result}
 import play.api.mvc.Results.Accepted
 import play.api.test.Helpers.{status, _}
 import repositories.DataRepository
@@ -15,7 +16,7 @@ import uk.gov.hmrc.mongo.MongoComponent
 
 import scala.concurrent.Future
 
-class ApplicationControllerSpec extends BaseSpecWithApplication{
+class ApplicationControllerSpec extends BaseSpecWithApplication {
 
   val TestApplicationController = new ApplicationController(
     controllerComponents = component,
@@ -24,12 +25,12 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
   )
 
   // This was implemented for Index()
-//  // Mock implementation of DataRepository
-//  class MockDataRepository extends DataRepository(MongoComponent) {
-//    override def index(): Future[Either[APIError, Seq[DataModel]]] = {
-//      Future.successful(Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path")))
-//    }
-//  }
+  //  // Mock implementation of DataRepository
+  //  class MockDataRepository extends DataRepository(MongoComponent) {
+  //    override def index(): Future[Either[APIError, Seq[DataModel]]] = {
+  //      Future.successful(Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path")))
+  //    }
+  //  }
 
   private val testDataModel: DataModel = DataModel(
     "abcd",
@@ -114,20 +115,19 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     }
 
     /** TODO - 02/08 09:49 - trying to mock the database in order to return an error from database... TBC */
-//    "return 400 when no invalid request has been made on this path" in {
-//      beforeEach()
-//          val mockDataRepository = new MockDataRepository
-//          val controller = new ApplicationController(mockDataRepository, stubControllerComponents())
-//
-//          val result: Future[Result] = controller.index().apply(FakeRequest())
-//
-//          status(result) mustBe 400
-//          contentType(result) mustBe Some("application/json")
-//          (contentAsJson(result) \ "reason").as[String] mustBe "Error: Bad response from API along path"
-//          afterEach()
-//        }
-      }
-
+    //    "return 400 when no invalid request has been made on this path" in {
+    //      beforeEach()
+    //          val mockDataRepository = new MockDataRepository
+    //          val controller = new ApplicationController(mockDataRepository, stubControllerComponents())
+    //
+    //          val result: Future[Result] = controller.index().apply(FakeRequest())
+    //
+    //          status(result) mustBe 400
+    //          contentType(result) mustBe Some("application/json")
+    //          (contentAsJson(result) \ "reason").as[String] mustBe "Error: Bad response from API along path"
+    //          afterEach()
+    //        }
+  }
 
 
   "ApplicationController .create" when {
@@ -178,60 +178,175 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       }
     }
 
-      "return a Json error message of create failed when the dataModel Json is invalid" in {
-        beforeEach()
+    "return a Json error message of create failed when the dataModel Json is invalid" in {
+      beforeEach()
 
-        val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
-        val createdResult: Future[Result] = TestApplicationController.create()(request)
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
+      val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-        val result = createdResult.futureValue
+      val result = createdResult.futureValue
       // Manually convert ByteString to JSON
-          val byteString = result.body.consumeData.futureValue
+      val byteString = result.body.consumeData.futureValue
       //^ Pulls the ByteString: ByteString(34, 68, 97, 116, 97, 32, 110, 111, 116, 32, 102, 111, 117, 110, 100, 34)
-        val jsonString = byteString.utf8String
+      val jsonString = byteString.utf8String
       //^ Converts to JsonString:"Data not found"
-        val errorMessage = Json.parse(jsonString)
+      val errorMessage = Json.parse(jsonString)
       //^ Converts to Json: "Data not found"
 
 
-        errorMessage shouldBe Json.toJson("Error in create: ")
+      errorMessage shouldBe Json.toJson("Error in create: ")
+      afterEach()
+    }
+  }
+
+
+
+  "ApplicationController .read" when {
+
+    "finding a book by id or name" should {
+
+      "Return a 200 Ok Response when using ID" in {
+        beforeEach()
+
+        // Create the book in the database (mocking this step as it is not the focus of the test)
+        val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+        val createResult: Future[Result] = TestApplicationController.create()(createRequest)
+
+        status(createResult) mustBe CREATED
+
+        // Read the book by name
+        val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?id=${testDataModel._id}")
+        val readResult: Future[Result] = TestApplicationController.read()(readRequest)
+
+        status(readResult) mustBe OK
+        contentAsJson(readResult).as[DataModel] mustBe testDataModel
+
         afterEach()
       }
-    }
 
-//  Invalid JSON: Malformed JSON input.
-//  JSON Schema Mismatch: The JSON doesn't match the DataModel schema, causing JsError.
-//  Null or Missing Fields: Required fields in DataModel are missing or null.
-//    Incorrect Data Types: Fields have incorrect data types (e.g., string instead of number).
-//    Network Issues: Problems with network connectivity affecting the repository call.
-//  Repository Error: Errors within dataRepository.create(dataModel).
-//    Invalid Encoding: Non-UTF-8 encoded JSON input.
-//  Concurrency Issues: Concurrent requests causing data consistency issues.
-//  Permission Issues: Lack of proper permissions to access or modify the data.
-//  Application Exceptions: Unhandled exceptions in the application logic.
+      "Return the model that has been called from the database when using ID" in {
+        beforeEach()
+
+        // Create the book in the database (mocking this step as it is not the focus of the test)
+        val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+        val createResult: Future[Result] = TestApplicationController.create()(createRequest)
+
+        status(createResult) mustBe CREATED
+
+        // Read the book by name
+        val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?id=${testDataModel._id}")
+        val readResult: Future[Result] = TestApplicationController.read()(readRequest)
+
+        contentAsJson(readResult).as[DataModel]._id mustBe "abcd"
+        contentAsJson(readResult).as[DataModel] mustBe testDataModel
+        afterEach()
+      }
+
+      "Return a 200 Ok Response when using Name" in {
+                beforeEach()
+
+                // Create the book in the database (mocking this step as it is not the focus of the test)
+                val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+                val createResult: Future[Result] = TestApplicationController.create()(createRequest)
+
+                status(createResult) mustBe CREATED
+
+                // Read the book by name
+                val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?name=${testDataModel.name}")
+                val readResult: Future[Result] = TestApplicationController.read()(readRequest)
+
+                status(readResult) mustBe OK
+                afterEach()
+              }
+
+      "Return the model that has been called when using Name" in {
+                beforeEach()
+
+                // Create the book in the database (mocking this step as it is not the focus of the test)
+                val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+                val createResult: Future[Result] = TestApplicationController.create()(createRequest)
+
+                status(createResult) mustBe CREATED
+
+                // Read the book by name
+                val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?name=${testDataModel.name}")
+                val readResult: Future[Result] = TestApplicationController.read()(readRequest)
+
+                contentAsJson(readResult).as[DataModel]._id mustBe "abcd"
+                contentAsJson(readResult).as[DataModel] mustBe testDataModel
+                afterEach()
+              }
+
+      "Return 400 code Bad Request when missing the parameter for id or name" in {
+                beforeEach()
+
+                // Create the book in the database (mocking this step as it is not the focus of the test)
+                val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+                val createResult: Future[Result] = TestApplicationController.create()(createRequest)
+
+                status(createResult) mustBe CREATED
+
+                // Read the book by name
+                val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read")
+                val readResult: Future[Result] = TestApplicationController.read()(readRequest)
 
 
-  "ApplicationController .read" should {
+                status(readResult) mustBe BAD_REQUEST
+                afterEach()
+              }
 
-    "find a book in the database by id" in {
-      beforeEach()
-      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
-      val createdResult: Future[Result] = TestApplicationController.create()(request)
+      "Return error message: Either id or name must be provided <- when missing the parameter for id or name" in {
+                beforeEach()
 
-      status(createdResult) shouldBe Status.CREATED
+                // Create the book in the database (mocking this step as it is not the focus of the test)
+                val createRequest: FakeRequest[JsValue] = FakeRequest(POST, "/api").withBody(Json.toJson(testDataModel))
+                val createResult: Future[Result] = TestApplicationController.create()(createRequest)
 
-      val readResult: Future[Result] = TestApplicationController.read("abcd")(FakeRequest())
+                status(createResult) mustBe CREATED
 
-      status(readResult) shouldBe OK
-      contentAsJson(readResult).as[DataModel] shouldBe testDataModel
-      afterEach()
-    }
+                // Read the book by name
+                val readRequest: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read")
+                val readResult: Future[Result] = TestApplicationController.read()(readRequest)
 
-    "return a not found 404 if the book does not exist" in {
-      beforeEach()
-      val readResult: Future[Result] = TestApplicationController.read("abcd")(FakeRequest())
-      status(readResult) shouldBe NOT_FOUND
-      afterEach()
+                contentAsJson(readResult).as[String] shouldBe "Either id or name must be provided"
+                afterEach()
+              }
+
+      "Return 404 not found when book is not found in the database using ID or Name" in {
+        beforeEach()
+
+        // Read the book by name
+        val readRequestName: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?name=${testDataModel.name}")
+        val readResultName: Future[Result] = TestApplicationController.read()(readRequestName)
+
+        val readRequestId: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?id=${testDataModel._id}")
+        val readResultId: Future[Result] = TestApplicationController.read()(readRequestId)
+
+
+        status(readResultName) mustBe NOT_FOUND
+        status(readResultId) mustBe NOT_FOUND
+        afterEach()
+      }
+
+      "Return error message: -> Data not found <- when book is not found in the database using ID or Name" in {
+        beforeEach()
+
+        // Read the book by name
+        val readRequestName: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?name=${testDataModel.name}")
+        val readResultName: Future[Result] = TestApplicationController.read()(readRequestName)
+
+        val readRequestId: FakeRequest[AnyContentAsEmpty.type] = FakeRequest(GET, s"/api/read?id=${testDataModel._id}")
+        val readResultId: Future[Result] = TestApplicationController.read()(readRequestId)
+
+        contentAsJson(readResultName).as[String] shouldBe "Data not found"
+        contentAsJson(readResultId).as[String] shouldBe "Data not found"
+        afterEach()
+      }
+
+      "Return a database error if there is a bad response from the database" in {
+        println("Wire mocking required for this- tbc at a later date")
+        // TODO 02/08 15:31 - WireMocking for database error
+      }
     }
   }
 

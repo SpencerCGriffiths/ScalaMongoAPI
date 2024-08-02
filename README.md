@@ -70,3 +70,8 @@ Why @Singleton etc?
 What is EitherT
 
 Update all the controller methods to use EitherT and return database errors, then wiremock in order to test for them. 
+
+
+Read optional params:
+/api/read?id=someIdValue
+/api/read?name=someNameValue

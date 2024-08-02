@@ -1,10 +1,13 @@
 package repositories
 
+import cats.data.EitherT
+import models.APIError.{BadAPIResponse, DatabaseError}
 import models.{APIError, DataModel}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.empty
 import org.mongodb.scala.model._
 import org.mongodb.scala.result
+import play.api.libs.json.Json
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
@@ -62,12 +65,27 @@ class DataRepository @Inject()(
       Filters.equal("_id", id)
     )
 
-  def read(id: String): Future[Option[DataModel]] =
-    collection.find(byID(id)).headOption() flatMap {
-      case Some(data) => Future.successful(Some(data))
+  private def byName(name: String): Bson = {
+    Filters.and(
+      Filters.equal("name", name)
+    )
+  }
+
+  def read(id: Option[String], name: Option[String]): Future[Option[DataModel]] = {
+
+    val filter = (id, name) match {
+      case (Some(id), _) => byID(id)
+      case (_, Some(name)) => byName(name)
+      // already handled the non case in Application Controller so it is not required here
+    }
+    collection.find(filter).headOption() flatMap {
+      case Some(data: DataModel) => Future.successful(Some(data))
       case None => Future.successful(None)
         //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option
     }
+  }.recover {
+    case _: Throwable => throw new Exception("Database error")
+  }
 
 
   def update(id: String, book: DataModel): Future[result.UpdateResult] = {
