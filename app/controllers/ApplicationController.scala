@@ -40,15 +40,19 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
       // ^ The validate method checks if the JSON can be successfully converted to a DataModel
       case JsSuccess(dataModel, _) =>
         // ^ If validation is successful "JsSuccess"  this block is executed with dataModel being the validated model
-        dataRepository.create(dataModel).map(_ => Created)
+        dataRepository.create(dataModel).map { createdDataModel =>
+          Created(Json.toJson(createdDataModel))
+        }
           //^ Calls the create method with the dataModel and returns a Future
           //^ The map section transforms the successful result into a HTTP "created" response
       /** We could validate the fields of book here as the dataModel */
-      case JsError(_) => Future(BadRequest)
+      case JsError(_) => Future(BadRequest(Json.toJson("Error in create: ")))
       // ^If validation fails JsError
       // ^ Future(BadRequest) returns a Future containing a HTTP BadRequest response
     }
   }
+
+  // Could boost up this methdod and test that the parameters are valid etc.
 
   def read(id: String): Action[AnyContent] = Action.async { implicit request =>
     dataRepository.read(id).map {

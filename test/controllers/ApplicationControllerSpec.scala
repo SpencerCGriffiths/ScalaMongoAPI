@@ -2,13 +2,16 @@ package controllers
 
 import Services.ApplicationService
 import baseSpec.BaseSpecWithApplication
-import models.DataModel
+import jdk.net.SocketFlow
+import models.{APIError, DataModel}
 import play.api.test.FakeRequest
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
 import play.api.mvc.Results.Accepted
-import play.api.test.Helpers._
+import play.api.test.Helpers.{status, _}
+import repositories.DataRepository
+import uk.gov.hmrc.mongo.MongoComponent
 
 import scala.concurrent.Future
 
@@ -20,7 +23,15 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     service = service
   )
 
-  private val dataModel: DataModel = DataModel(
+  // This was implemented for Index()
+//  // Mock implementation of DataRepository
+//  class MockDataRepository extends DataRepository(MongoComponent) {
+//    override def index(): Future[Either[APIError, Seq[DataModel]]] = {
+//      Future.successful(Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path")))
+//    }
+//  }
+
+  private val testDataModel: DataModel = DataModel(
     "abcd",
     "test name",
     "test description",
@@ -33,13 +44,15 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     "test description2",
     1002
   )
+
+
   "ApplicationController .index()" should {
 
 
     "return 200 OK when books are found" in {
       beforeEach()
 
-      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
       status(createdResult) shouldBe Status.CREATED
 
@@ -54,7 +67,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     "return the Seq of books when books are found" in {
       beforeEach()
 
-      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
       status(createdResult) shouldBe Status.CREATED
 
@@ -71,7 +84,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
         val books = json.as[Seq[DataModel]]
 
         // Print or assert the parsed books
-        books shouldBe Seq(dataModel)
+        books shouldBe Seq(testDataModel)
       }
       afterEach()
     }
@@ -100,50 +113,109 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       afterEach()
     }
 
-    "return 400 when no invalid request has been made on this path" in {
-      beforeEach()
-      // to cause an error in the index() you have to simulate a scenario where an exception is thrown
-      // This would an error with the database but in order not to replicate this consistently this can be "mocked"
-
-
-      val request: FakeRequest[JsValue] = buildGet("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
-      val result = TestApplicationController.index()(request)
-
-      whenReady(result) { res =>
-        res.body.contentType shouldBe None
+    /** TODO - 02/08 09:49 - trying to mock the database in order to return an error from database... TBC */
+//    "return 400 when no invalid request has been made on this path" in {
+//      beforeEach()
+//          val mockDataRepository = new MockDataRepository
+//          val controller = new ApplicationController(mockDataRepository, stubControllerComponents())
+//
+//          val result: Future[Result] = controller.index().apply(FakeRequest())
+//
+//          status(result) mustBe 400
+//          contentType(result) mustBe Some("application/json")
+//          (contentAsJson(result) \ "reason").as[String] mustBe "Error: Bad response from API along path"
+//          afterEach()
+//        }
       }
-      afterEach()
+
+
+
+  "ApplicationController .create" when {
+
+    "Successful" should {
+
+      "return code 201 for created " in {
+        beforeEach()
+
+        val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+        status(createdResult) shouldBe Status.CREATED
+        afterEach()
+      }
+
+      "return the book that was created" in {
+        beforeEach()
+
+        val request: FakeRequest[JsValue] = buildPost("/api").withBody(Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+        val result = createdResult.futureValue
+
+        // Manually convert ByteString to JSON
+        val byteString = result.body.consumeData.futureValue
+        val jsonString = byteString.utf8String
+        val json = Json.parse(jsonString)
+        val createdBook = json.as[DataModel]
+
+        createdBook shouldBe testDataModel // Validate the created book
+
+        afterEach()
+      }
     }
-  }
 
-  "ApplicationController .create" should {
+    "not successful" should {
 
-    "create a book in the database" in {
-      beforeEach()
+      "return a bad request status 400 when the dataModel is invalid" in {
+        beforeEach()
 
-      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(dataModel))
-      val createdResult: Future[Result] = TestApplicationController.create()(request)
+        val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-      status(createdResult) shouldBe Status.CREATED
-      afterEach()
+
+        status(createdResult) shouldBe Status.BAD_REQUEST
+        afterEach()
+      }
     }
 
-    "return a bad request if body to create cannot be validated" in {
-      beforeEach()
+      "return a Json error message of create failed when the dataModel Json is invalid" in {
+        beforeEach()
 
-      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
-      val createdResult: Future[Result] = TestApplicationController.create()(request)
+        val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson("Bad Request- Invalid JSON Data Model"))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-      status(createdResult) shouldBe Status.BAD_REQUEST
-      afterEach()
+        val result = createdResult.futureValue
+      // Manually convert ByteString to JSON
+          val byteString = result.body.consumeData.futureValue
+      //^ Pulls the ByteString: ByteString(34, 68, 97, 116, 97, 32, 110, 111, 116, 32, 102, 111, 117, 110, 100, 34)
+        val jsonString = byteString.utf8String
+      //^ Converts to JsonString:"Data not found"
+        val errorMessage = Json.parse(jsonString)
+      //^ Converts to Json: "Data not found"
+
+
+        errorMessage shouldBe Json.toJson("Error in create: ")
+        afterEach()
+      }
     }
-  }
+
+//  Invalid JSON: Malformed JSON input.
+//  JSON Schema Mismatch: The JSON doesn't match the DataModel schema, causing JsError.
+//  Null or Missing Fields: Required fields in DataModel are missing or null.
+//    Incorrect Data Types: Fields have incorrect data types (e.g., string instead of number).
+//    Network Issues: Problems with network connectivity affecting the repository call.
+//  Repository Error: Errors within dataRepository.create(dataModel).
+//    Invalid Encoding: Non-UTF-8 encoded JSON input.
+//  Concurrency Issues: Concurrent requests causing data consistency issues.
+//  Permission Issues: Lack of proper permissions to access or modify the data.
+//  Application Exceptions: Unhandled exceptions in the application logic.
+
 
   "ApplicationController .read" should {
 
     "find a book in the database by id" in {
       beforeEach()
-      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
 
       status(createdResult) shouldBe Status.CREATED
@@ -151,7 +223,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       val readResult: Future[Result] = TestApplicationController.read("abcd")(FakeRequest())
 
       status(readResult) shouldBe OK
-      contentAsJson(readResult).as[DataModel] shouldBe dataModel
+      contentAsJson(readResult).as[DataModel] shouldBe testDataModel
       afterEach()
     }
 
@@ -167,13 +239,13 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
 
     "Update a database entry when the entry exists" in {
       beforeEach()
-      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
 
       status(createdResult) shouldBe Status.CREATED
 
 
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
       val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
 
 
@@ -184,7 +256,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     "Return an error of NotFound when the item does not exist to be updated" in {
       beforeEach()
       // Entry with ID abcd has not been created yet to update
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
       val updateResult: Future[Result] = TestApplicationController.update("1")(requestUpdate)
 
 
@@ -196,12 +268,12 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
       beforeEach()
       // Entry with ID abcd has been created but the data being sent to update isn't appropriate
 
-      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
 
       status(createdResult) shouldBe Status.CREATED
 
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson("This is not valid Json for dataModel"))
+      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson("This is not valid Json for testDataModel"))
       val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
 
 
@@ -216,7 +288,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication{
     "delete an individual entry in the data base with 202 Accepted response" in {
 
       beforeEach()
-      val request: FakeRequest[JsValue] = buildGet("/api/${dataModel._id}").withBody[JsValue](Json.toJson(dataModel))
+      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
 
       status(createdResult) shouldBe Status.CREATED

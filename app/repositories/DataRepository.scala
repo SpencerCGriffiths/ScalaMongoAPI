@@ -44,14 +44,18 @@ class DataRepository @Inject()(
     collection.find().toFuture().map { books =>
       Right(books)
        }. recover {
-      case e: Exception => Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path"))
+      case e: Exception => Left(APIError.DatabaseError("Error: Error returned from database"))
+        // TODO 02/08 10:29 - Integration testing: This will require mocking the database
+        // Return here if extra time.
+        // HTTP 500 Internal server error
     }
 
-  def create(book: DataModel): Future[DataModel] =
+  def create(book: DataModel): Future[DataModel] = {
     collection
       .insertOne(book)
       .toFuture()
       .map(_ => book)
+  }
 
   private def byID(id: String): Bson =
     Filters.and(
@@ -64,6 +68,7 @@ class DataRepository @Inject()(
       case None => Future.successful(None)
         //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option
     }
+
 
   def update(id: String, book: DataModel): Future[result.UpdateResult] = {
     collection.replaceOne(
