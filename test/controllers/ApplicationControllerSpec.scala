@@ -3,7 +3,7 @@ package controllers
 import Services.ApplicationService
 import baseSpec.BaseSpecWithApplication
 import jdk.net.SocketFlow
-import models.{APIError, DataModel}
+import models.{APIError, DataModel, PartialDataModel}
 import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
 import play.api.test.FakeRequest
 import play.api.http.Status
@@ -21,16 +21,10 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
   val TestApplicationController = new ApplicationController(
     controllerComponents = component,
     dataRepository = repository,
-    service = service
+    service = service,
+    repoService = repoService
   )
 
-  // This was implemented for Index()
-  //  // Mock implementation of DataRepository
-  //  class MockDataRepository extends DataRepository(MongoComponent) {
-  //    override def index(): Future[Either[APIError, Seq[DataModel]]] = {
-  //      Future.successful(Left(APIError.BadAPIResponse(400, "Error: Bad response from API along path")))
-  //    }
-  //  }
 
   private val testDataModel: DataModel = DataModel(
     "abcd",
@@ -39,11 +33,25 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
     100
   )
 
-  private val dataModelUpdate: DataModel = DataModel(
-    "abcd",
-    "test name2",
-    "test description2",
-    1002
+  private val dataModelUpdateFull: PartialDataModel = PartialDataModel (
+    Some("Update test full"),
+    Some("Update test description full"),
+    Some(1004)
+  )
+  private val dataModelUpdateName: PartialDataModel = PartialDataModel (
+    Some("Update test name"),
+    None,
+    None
+  )
+  private val dataModelUpdateDesc: PartialDataModel = PartialDataModel (
+    None,
+    Some("Update test description"),
+    None
+  )
+  private val dataModelUpdatePage: PartialDataModel = PartialDataModel (
+    None,
+    None,
+    Some(1114)
   )
 
 
@@ -352,48 +360,133 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
 
   "ApplicationController .update()" should {
 
-    "Update a database entry when the entry exists" in {
-      beforeEach()
-      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
-      val createdResult: Future[Result] = TestApplicationController.create()(request)
+    "Update an existing database entry" when {
 
-      status(createdResult) shouldBe Status.CREATED
+      "All fields have value" in {
+        beforeEach()
+        val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
-      val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+        status(createdResult) shouldBe Status.CREATED
 
 
-      status(updateResult) shouldBe ACCEPTED
-      afterEach()
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdateFull))
+        val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+
+        val json = contentAsJson(updateResult)
+        // TODO - Convert to JSON:
+
+        status(updateResult) shouldBe ACCEPTED
+        (json \ "_id").as[String] mustBe "abcd"
+        (json \ "name").as[String] mustBe "Update test full"
+        (json \ "description").as[String] mustBe "Update test description full"
+        (json \ "pageCount").as[Int] mustBe 1004
+
+        afterEach()
+      }
+
+      "Only the name field is present" in {
+        beforeEach()
+        val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+        status(createdResult) shouldBe Status.CREATED
+
+
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdateName))
+        val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+
+
+        val json = contentAsJson(updateResult)
+        // TODO - Convert to JSON:
+
+        status(updateResult) shouldBe ACCEPTED
+        (json \ "_id").as[String] mustBe "abcd"
+        (json \ "name").as[String] mustBe "Update test name"
+        (json \ "description").as[String] mustBe "test description"
+        (json \ "pageCount").as[Int] mustBe 100
+
+        afterEach()
+      }
+
+      "Only the description field is present" in {
+        beforeEach()
+        val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+        status(createdResult) shouldBe Status.CREATED
+
+
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdateDesc))
+        val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+
+
+        val json = contentAsJson(updateResult)
+        // TODO - Convert to JSON:
+
+        status(updateResult) shouldBe ACCEPTED
+        (json \ "_id").as[String] mustBe "abcd"
+        (json \ "name").as[String] mustBe "test name"
+        (json \ "description").as[String] mustBe "Update test description"
+        (json \ "pageCount").as[Int] mustBe 100
+
+        afterEach()
+      }
+
+      "Only the pageCount field is present" in {
+        beforeEach()
+        val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
+
+        status(createdResult) shouldBe Status.CREATED
+
+
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdatePage))
+        val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+
+
+        val json = contentAsJson(updateResult)
+        // TODO - Convert to JSON:
+
+        status(updateResult) shouldBe ACCEPTED
+        (json \ "_id").as[String] mustBe "abcd"
+        (json \ "name").as[String] mustBe "test name"
+        (json \ "description").as[String] mustBe "test description"
+        (json \ "pageCount").as[Int] mustBe 1114
+
+        afterEach()
+      }
     }
 
-    "Return an error of NotFound when the item does not exist to be updated" in {
-      beforeEach()
-      // Entry with ID abcd has not been created yet to update
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdate))
-      val updateResult: Future[Result] = TestApplicationController.update("1")(requestUpdate)
+    "Return a specific error" when {
+
+      "(NotFound) when the item does not exist to be updated" in {
+        beforeEach()
+        // Entry with ID abcd has not been created yet to update
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(dataModelUpdateFull))
+        val updateResult: Future[Result] = TestApplicationController.update("1")(requestUpdate)
 
 
-      status(updateResult) shouldBe NOT_FOUND
-      afterEach()
-    }
+        status(updateResult) shouldBe NOT_FOUND
+        afterEach()
+      }
 
-    "Return an error of BadRequest when the data to update is not valid Json" in {
-      beforeEach()
-      // Entry with ID abcd has been created but the data being sent to update isn't appropriate
+      "Return an error of BadRequest when the data to update is not valid Json" in {
+        beforeEach()
+        // Entry with ID abcd has been created but the data being sent to update isn't appropriate
 
-      val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
-      val createdResult: Future[Result] = TestApplicationController.create()(request)
+        val request: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson(testDataModel))
+        val createdResult: Future[Result] = TestApplicationController.create()(request)
 
-      status(createdResult) shouldBe Status.CREATED
+        status(createdResult) shouldBe Status.CREATED
 
-      val requestUpdate: FakeRequest[JsValue] = buildGet("/api/${testDataModel._id}").withBody[JsValue](Json.toJson("This is not valid Json for testDataModel"))
-      val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
+        val requestUpdate: FakeRequest[JsValue] = buildPatch("/api/${testDataModel._id}").withBody[JsValue](Json.toJson("THIS IS NOT A VALID MODEL"))
+        val updateResult: Future[Result] = TestApplicationController.update("abcd")(requestUpdate)
 
 
-      status(updateResult) shouldBe BAD_REQUEST
-      afterEach()
+        status(updateResult) shouldBe BAD_REQUEST
+        afterEach()
+      }
     }
   }
 

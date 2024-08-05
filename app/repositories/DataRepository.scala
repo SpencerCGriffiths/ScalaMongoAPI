@@ -13,6 +13,7 @@ import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 import scala.xml.dtd.ValidationException
 import scala.xml.parsing.FatalError
 
@@ -36,21 +37,18 @@ class DataRepository @Inject()(
   replaceIndexes = false
 ) {
 
-  // Each of these is a CRUD Function:
-//  def index(): Future[Either[Int, Seq[DataModel]]]  =
-//    collection.find().toFuture().map{
-//      case books: Seq[DataModel] => Right(books)
-//      case _ => Left(404)
-//    }
+
 
   def index(): Future[Either[APIError, Seq[DataModel]]] =
     collection.find().toFuture().map { books =>
       Right(books)
        }. recover {
-      case e: Exception => Left(APIError.DatabaseError("Error: Error returned from database"))
+      case NonFatal(e) =>
+        Left(APIError.DatabaseError(s"Error: ${e.getMessage}"))
         // TODO 02/08 10:29 - Integration testing: This will require mocking the database
         // Return here if extra time.
         // HTTP 500 Internal server error
+        //NonFatal is used to catch non-fatal exceptions. It's a best practice in Scala to use NonFatal to avoid catching serious errors like OutOfMemoryError, StackOverflowError, etc.
     }
 
   def create(book: DataModel): Future[DataModel] = {
@@ -60,7 +58,7 @@ class DataRepository @Inject()(
       .map(_ => book)
   }
 
-  private def byID(id: String): Bson =
+   private def byID(id: String): Bson =
     Filters.and(
       Filters.equal("_id", id)
     )
@@ -81,7 +79,7 @@ class DataRepository @Inject()(
     collection.find(filter).headOption() flatMap {
       case Some(data: DataModel) => Future.successful(Some(data))
       case None => Future.successful(None)
-        //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option
+      //^ 31/7 10:15 - Updated this function to use Option so that you can handle Non option
     }
   }.recover {
     case _: Throwable => throw new Exception("Database error")

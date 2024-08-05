@@ -1,21 +1,22 @@
 package controllers
 
-import Services.ApplicationService
+import Services.{ApplicationService, RepositoryService}
 import com.mongodb.client.result.DeleteResult
 import models.APIError.{BadAPIResponse, DatabaseError}
-import models.{APIError, DataModel}
-import play.api.http.Status.OK
-import play.api.libs.json.{JsError, JsSuccess, JsValue, Json}
+import models.{APIError, DataModel, PartialDataModel}
+import play.api.http.Status.{OK, isClientError}
+import play.api.libs.json.{JsError, JsObject, JsSuccess, JsValue, Json}
 import play.api.mvc.{Action, AnyContent, BaseController, ControllerComponents}
 import play.api.mvc.Results
 import repositories.DataRepository
 
 import javax.inject._
 import scala.concurrent.{ExecutionContext, Future}
+import play.api.mvc._
 
 
 @Singleton
-class ApplicationController @Inject()(val controllerComponents: ControllerComponents, val dataRepository: DataRepository, val service: ApplicationService)(implicit val ec: ExecutionContext) extends BaseController {
+class ApplicationController @Inject()(val controllerComponents: ControllerComponents, val dataRepository: DataRepository, val service: ApplicationService, val repoService: RepositoryService)(implicit val ec: ExecutionContext) extends BaseController {
 
 
   def index(): Action[AnyContent] = Action.async { implicit request =>
@@ -79,16 +80,67 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     }
   }
 
-  def update(id:String): Action[JsValue] = Action.async(parse.json) { implicit request =>
-    request.body.validate[DataModel] match {
-      case JsSuccess(dataModel, _) =>
-        dataRepository.update(id, dataModel).map {
-          case result if result.getMatchedCount == 0 => NotFound(Json.toJson("Data not found"))
-          case result if result.getMatchedCount == 1 => Accepted {Json.toJson(dataModel)}
+  def update(id: String): Action[JsValue] = Action.async(parse.json) { implicit request =>
+
+    // Step 1 validate incoming Json Object
+    request.body.validate[JsObject] match {
+      case JsSuccess(incomingJson, _) =>
+        // PATH 1 - It is valid Json and can be a JsObject
+
+        // Step 2 - Validate if the object can be converted to PartialDataModel
+        val partialDataResult = incomingJson.validate[PartialDataModel]
+        // Validate it as a PartialDataModel
+        partialDataResult match {
+          case JsSuccess(partialData, _) =>
+            // Path 1A it is a data model
+
+            // Step 3- perform a read to get the original data
+            dataRepository.read(Some(id), None).flatMap {
+              // Perform a read to get the original data
+
+              case None =>
+                Future.successful(NotFound(Json.toJson("Data not found")))
+                // If the data is not present because it doesn't exist return not found
+
+              case Some(existingData) =>
+                // If the data does exist
+
+                val updatedData = DataModel(
+                  _id = existingData._id,  // ID has to stay the same
+                  name = partialData.name.getOrElse(existingData.name), // if name is provided replace
+                  description = partialData.description.getOrElse(existingData.description), // if provided replace
+                  pageCount = partialData.pageCount.getOrElse(existingData.pageCount) // if provided replace
+                )
+
+                // Step 4- validate the combined data as a DataModel for the update
+                Json.toJson(updatedData).validate[DataModel] match {
+                  // Now we have the combined data validate again that it is a DataModel
+                  case JsSuccess(validatedDataModel, _) =>
+                    // If we can validate the dataModel do the update
+
+                    // Step 5- perform the update
+                    dataRepository.update(id, validatedDataModel).map {
+                      case result if result.getMatchedCount == 0 => NotFound(Json.toJson("Data not found"))
+                      // If for some crazy reason we have got to here and the data isnt found return not found
+                      case result if result.getMatchedCount == 1 => Accepted(Json.toJson(validatedDataModel))
+                        // If the data was found and it is all good have an accepted and the validatedBook reutrned
+                    }
+
+                  case JsError(errors) =>
+                    // Error - The combined data could not be validated as a DataModel
+                    Future.successful(BadRequest(Json.toJson("Error: The data could not be validated as a DataModel")))
+                }
+            }
+          case JsError(errors) =>
+            // Error- the thing entered was not a valid PartialDataModel but was Json Object
+            Future.successful(BadRequest(Json.toJson("Error: The input was not a valid PartialDataModel")))
         }
-      case JsError(_) => Future.successful(BadRequest)
+      case JsError(errors) =>
+        // Error- the thing entered was not a valid Json Object
+        Future.successful(BadRequest(Json.toJson("Error: The input was not a valid Json Object")))
     }
   }
+
   //  (updatedBook => Accepted)
   //^ TODO 31/7  -14:30 SCG - Other variation of update return
   //^ The above method could just return accepted however the way it is currently written allows for the appropriate Json but the object not to exist and gives more information.
