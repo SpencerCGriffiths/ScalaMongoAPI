@@ -78,5 +78,6 @@ class ApplicationServiceSpec extends BaseSpec with MockFactory with ScalaFutures
           // TODO 01/08 14:11 --- Why does this work??
       }
     }
+
     }
   }

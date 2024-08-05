@@ -1,0 +1,5 @@
+package Repositories
+
+class DataRepositorySpec {
+
+}

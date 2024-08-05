@@ -61,7 +61,7 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
     "return 200 OK when books are found" in {
       beforeEach()
 
-      val request: FakeRequest[JsValue] = buildPost("/api").withBody[JsValue](Json.toJson(testDataModel))
+      val request: FakeRequest[JsValue] = buildGet("/api").withBody[JsValue](Json.toJson(testDataModel))
       val createdResult: Future[Result] = TestApplicationController.create()(request)
       status(createdResult) shouldBe Status.CREATED
 

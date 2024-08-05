@@ -23,7 +23,7 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
   // ^ Method signature, returns an Action that handles AnyContent (Json, form data etc.)
   // ^ Action.async indicates it will be handled asynchronously
   // ^ implicit request => means that the request object is implicitly available in the block
-    dataRepository.index().map{
+    repoService.index().map{
       //^ calls the index method on dataRepository, which returns Future[Either[Int, Seq[DataModel]]]
       //^ .map is used to transform the Future once it completes
       case Right(item: Seq[DataModel]) if item.nonEmpty => Ok {Json.toJson(item)}
@@ -41,8 +41,9 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
       // ^ The validate method checks if the JSON can be successfully converted to a DataModel
       case JsSuccess(dataModel, _) =>
         // ^ If validation is successful "JsSuccess"  this block is executed with dataModel being the validated model
-        dataRepository.create(dataModel).map { createdDataModel =>
-          Created(Json.toJson(createdDataModel))
+        repoService.create(dataModel).map {
+          case Right(created) => Created(Json.toJson(created))
+          case Left(error) => InternalServerError(Json.toJson(error.reason))
         }
           //^ Calls the create method with the dataModel and returns a Future
           //^ The map section transforms the successful result into a HTTP "created" response
@@ -53,29 +54,25 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
     }
   }
 
-  // Could boost up this method and test that the parameters are valid etc.
-
-
   def read(): Action[AnyContent] = Action.async { implicit request =>
     val idParam = request.getQueryString("id")
     val nameParam = request.getQueryString("name")
 
-    val rawResult: Future[Option[DataModel]] = (idParam, nameParam) match {
+    val rawResult: Future[Either[APIError, DataModel]] = (idParam, nameParam) match {
       case (Some(id), _) => dataRepository.read(Some(id), None)
       case (_, Some(name)) => dataRepository.read(None, Some(name))
-      case (None, None) => Future.failed(new IllegalArgumentException("Either id or name must be provided"))
+      case (None, None) => Future.successful(Left(APIError.BadRequest("Either id or name must be provided")))
     }
 
     rawResult.map {
-      case Some(dataModel) => Ok(Json.toJson(dataModel))
-      case None => NotFound(Json.toJson("Data not found"))
+      case Right(dataModel) => Ok(Json.toJson(dataModel))
+      case Left(APIError.NotFound(msg)) => NotFound(Json.toJson(msg))
+      case Left(error) => Status(error.httpResponseStatus)(Json.toJson(error.reason))
     }.recover {
       case e: IllegalArgumentException => BadRequest(Json.toJson(e.getMessage))
       case _: Exception => {
-        val apiError = DatabaseError("Error msg: bad response from database")
+        val apiError = APIError.DatabaseError("Error: bad response from database")
         Status(apiError.httpResponseStatus)(Json.toJson(apiError.reason))
-        // TODO 02/08 15:15 -> Database error to be added Done - no testing
-        // add a case of e: BadAPI request.. return in DataRepository would need to return this
       }
     }
   }
@@ -95,22 +92,25 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
             // Path 1A it is a data model
 
             // Step 3- perform a read to get the original data
-            dataRepository.read(Some(id), None).flatMap {
+            repoService.read(Some(id), None).flatMap {
               // Perform a read to get the original data
-
-              case None =>
-                Future.successful(NotFound(Json.toJson("Data not found")))
+                case Left(APIError.NotFound(msg)) =>
+                  Future.successful(NotFound(Json.toJson(msg)))
                 // If the data is not present because it doesn't exist return not found
 
-              case Some(existingData) =>
-                // If the data does exist
+                case Left(error) =>
+                  Future.successful(Status(error.httpResponseStatus)(Json.toJson(error.reason)))
+                // If there is another error, return the appropriate status and error message
 
-                val updatedData = DataModel(
-                  _id = existingData._id,  // ID has to stay the same
-                  name = partialData.name.getOrElse(existingData.name), // if name is provided replace
-                  description = partialData.description.getOrElse(existingData.description), // if provided replace
-                  pageCount = partialData.pageCount.getOrElse(existingData.pageCount) // if provided replace
-                )
+                case Right(existingData) =>
+                  // If the data does exist
+
+                  val updatedData = DataModel(
+                    _id = existingData._id,  // ID has to stay the same
+                    name = partialData.name.getOrElse(existingData.name), // if name is provided replace
+                    description = partialData.description.getOrElse(existingData.description), // if provided replace
+                    pageCount = partialData.pageCount.getOrElse(existingData.pageCount) // if provided replace
+                  )
 
                 // Step 4- validate the combined data as a DataModel for the update
                 Json.toJson(updatedData).validate[DataModel] match {
@@ -119,11 +119,12 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
                     // If we can validate the dataModel do the update
 
                     // Step 5- perform the update
-                    dataRepository.update(id, validatedDataModel).map {
-                      case result if result.getMatchedCount == 0 => NotFound(Json.toJson("Data not found"))
+                    repoService.update(id, validatedDataModel).map {
+                      case Right(value) if value.getMatchedCount == 0 => NotFound(Json.toJson("Data not found"))
                       // If for some crazy reason we have got to here and the data isnt found return not found
-                      case result if result.getMatchedCount == 1 => Accepted(Json.toJson(validatedDataModel))
+                      case Right(value) if value.getMatchedCount == 1 => Accepted(Json.toJson(validatedDataModel))
                         // If the data was found and it is all good have an accepted and the validatedBook reutrned
+                      case Left(error) => BadRequest(Json.toJson(error.reason))
                     }
 
                   case JsError(errors) =>
@@ -147,9 +148,10 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
 
 
   def delete(id:String): Action[AnyContent] = Action.async { implicit request =>
-  dataRepository.delete(id).map {
-    case result if result.getDeletedCount == 0 => NotFound(Json.toJson("Data not found"))
-    case result if result.getDeletedCount > 0 =>  Accepted {Json.toJson("Entry has been removed")}
+  repoService.delete(id).map {
+    case Right(data) if data.getDeletedCount == 0 => NotFound(Json.toJson("Data not found"))
+    case Right(data) if data.getDeletedCount > 0 =>  Accepted {Json.toJson("Entry has been removed")}
+    case Left(error) => BadRequest(Json.toJson(error.reason))
     //^ 31/7 10:54 - delete returns a delete count of 0 or more.
   }
   }

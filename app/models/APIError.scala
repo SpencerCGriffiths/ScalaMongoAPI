@@ -14,6 +14,8 @@ object APIError {
 
   final case class DatabaseError(override val reason: String) extends APIError(Status.INTERNAL_SERVER_ERROR, reason)
 
+  final case class BadRequest(override val reason: String) extends APIError(Status.BAD_REQUEST, reason)
+
   final case class BadAPIResponse(upstreamStatus: Int, upstreamMessage: String)
     extends APIError(Status.INTERNAL_SERVER_ERROR, s"Bad response from upstream; got status: $upstreamStatus, and got reason $upstreamMessage")
 }
