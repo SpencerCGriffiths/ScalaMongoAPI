@@ -2,13 +2,13 @@ package Services
 
 import models.{APIError, DataModel}
 import org.mongodb.scala.result
-import repositories.DataRepository
+import repositories.{DataRepository, DataRepositoryTrait}
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
-class RepositoryService @Inject()(val dataRepository: DataRepository)(implicit ec: ExecutionContext) {
+class RepositoryService @Inject()(val dataRepository: DataRepositoryTrait)(implicit ec: ExecutionContext) {
 
   def index(): Future[Either[APIError, Seq[DataModel]]] = {
     dataRepository.index().map {
@@ -54,5 +54,7 @@ class RepositoryService @Inject()(val dataRepository: DataRepository)(implicit e
       case _  => Left(APIError.BadAPIResponse(500, "Error: error in RepoService"))
     }
   }
+
+
 }
 

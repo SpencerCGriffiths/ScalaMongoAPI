@@ -75,3 +75,11 @@ Update all the controller methods to use EitherT and return database errors, the
 Read optional params:
 /api/read?id=someIdValue
 /api/read?name=someNameValue
+
+whats the difference between fucntion and method??
+
+(mockrepository.method _)
+
+future- i would create a different read for update
+
+The asOpt method is part of the Play JSON library in Scala, and it is used to safely extract and convert a JSON value to a specific type. It returns an Option type, which can be either Some(value) if the conversion is successful, or None if it fails. This is useful for handling optional or uncertain JSON fields gracefully.

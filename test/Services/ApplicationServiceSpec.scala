@@ -26,22 +26,40 @@ class ApplicationServiceSpec extends BaseSpec with MockFactory with ScalaFutures
   //^ where you EXPLICITLY tell the method in ApplicationConnector what to return so you can test how the service responds independently of the connector
   //^ Instead of making a call to the Google Books API we can pretend to have received the gameOfThrones JSON from the API to test the functionality
 
-  val gameOfThrones: JsValue = Json.obj(
-    "_id" -> "someId",
-    "name" -> "A Game of Thrones",
-    "description" -> "The best book!!!",
-    "pageCount" -> 100
+  val gameOfThrones: DataModel = DataModel (
+    _id = "1",
+    name = "A Game of Thrones",
+    description = "A description",
+    pageCount = 694
+  )
+
+  val gameOfThronesJson: JsValue = Json.parse(
+    """
+      |{
+      |  "totalItems": 1,
+      |  "items": [
+      |    {
+      |      "id": "1",
+      |      "volumeInfo": {
+      |        "title": "A Game of Thrones",
+      |        "description": "A description",
+      |        "pageCount": 694
+      |      }
+      |    }
+      |  ]
+      |}
+        """.stripMargin
   )
 
   "getGoogleBook" should {
     val url: String = "testUrl"
 
     "return a book" in {
-      (mockConnector.get[DataModel](_: String)(_: OFormat[DataModel], _: ExecutionContext))
+      (mockConnector.get[JsValue](_: String)(_: OFormat[JsValue], _: ExecutionContext))
         //^ sets up a mock expectation or the get method of the mockConnector, The method takes a String (URL PARAM), 0Format, and a Execution context
         .expects(url, *, *)
         //^ specifies arguments for method call - url is specific, * is a wild card
-        .returning(EitherT(Future.successful(Right(gameOfThrones.as[DataModel])): Future[Either[APIError, DataModel]]))
+        .returning(EitherT(Future.successful(Right(gameOfThronesJson)): Future[Either[APIError, JsValue]]))
         //^ Sets up the mock return- A Future, containing a Right, with gameOfThrone > Wrapping in Either T indicates it could return an error
         // ^ We explicitly state the type :
         .once()
@@ -59,7 +77,7 @@ class ApplicationServiceSpec extends BaseSpec with MockFactory with ScalaFutures
 
       // Using whenReady to wait for the future to complete and verify the result
       whenReady(futureResult) { result =>
-        result shouldBe gameOfThrones.as[DataModel]
+        result shouldBe gameOfThrones
       }
       }
 

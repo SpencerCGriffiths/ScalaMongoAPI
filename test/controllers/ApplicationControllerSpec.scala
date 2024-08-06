@@ -4,7 +4,9 @@ import Services.ApplicationService
 import baseSpec.BaseSpecWithApplication
 import jdk.net.SocketFlow
 import models.{APIError, DataModel, PartialDataModel}
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
+import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import play.api.test.FakeRequest
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
@@ -53,7 +55,12 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
     None,
     Some(1114)
   )
-
+  private val LOTRdata = DataModel(
+    _id = "7iS1CCpHrJgC",
+    name = "The Fellowship of the Ring",
+    description = "The opening novel of The Lord of the Rings—the greatest fantasy epic of all time—which continues in The Two Towers and The Return of the King. Nominated as one of America’s best-loved novels by PBS’s The Great American Read The dark, fearsome Ringwraiths are searching for a Hobbit. Frodo Baggins knows that they are seeking him and the Ring he bears—the Ring of Power that will enable evil Sauron to destroy all that is good in Middle-earth. Now it is up to Frodo and his faithful servant, Sam, with a small band of companions, to carry the Ring to the one place it can be destroyed: Mount Doom, in the very center of Sauron’s realm.",
+    pageCount = 532
+  )
 
   "ApplicationController .index()" should {
 
@@ -521,17 +528,41 @@ class ApplicationControllerSpec extends BaseSpecWithApplication {
 
   "ApplicationController .getGoogleBook()" should {
 
-    "delete an individual entry in the data base with 202 Accepted response" in {
+    "Return a 200 positive request" in {
+      beforeEach()
+
+      val result: Future[Result] = TestApplicationController.getGoogleBook("isbn", "0345339703")(FakeRequest())
+
+      // Convert the expected data model to JSON
+      val expectedJson = Json.toJson(LOTRdata)
+
+      status(result) shouldBe OK
+      assert(contentAsJson(result) == expectedJson)
+
+      afterEach()
+    }
+    "Return a 404 not found if no book is found from the search term" in {
 
       beforeEach()
 
-      val result: Future[Result] = TestApplicationController.getGoogleBook("flowers","inauthor")(FakeRequest())
+      val result: Future[Result] = TestApplicationController.getGoogleBook("isbn", "03")(FakeRequest())
 
+      // Convert the expected data model to JSON
+      val expectedJson = Json.toJson("Error: No items found with search terms")
+      status(result) shouldBe NOT_FOUND
+      assert(contentAsJson(result) == expectedJson)
 
-      status(result) shouldBe ACCEPTED
       afterEach()
     }
   }
+
+//  "ApplicationController .geGoogleBookISBN()" should {
+//
+//    "" in {
+//      val result = TestApplicationController.getGoogleBookISBN()
+//      result
+//    }
+//  }
 
   "test name" should {
     "do something" in {

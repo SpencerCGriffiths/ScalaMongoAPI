@@ -11,8 +11,10 @@ import play.api.mvc.Results
 import repositories.DataRepository
 
 import javax.inject._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import play.api.mvc._
+
+import scala.concurrent.duration.DurationInt
 
 
 @Singleton
@@ -156,12 +158,53 @@ class ApplicationController @Inject()(val controllerComponents: ControllerCompon
   }
   }
 
+
 // Using the ApplicationConnector and ApplicationService:
 
   def getGoogleBook(search: String, term: String): Action[AnyContent] = Action.async { implicit request =>
     service.getGoogleBook(search = search, term = term).value.map {
-      case Right(book) => Accepted //Hint: This should be the same as before
-      case Left(error) => Status(error.httpResponseStatus)
+      case Right(book) =>
+        Ok(Json.toJson(book)) // Return the book as JSON if found
+      case Left(error) =>
+        Status(error.httpResponseStatus)(Json.toJson(error.reason))// Return error message as JSON
     }
   }
+
+//  def getGoogleBookISBN(): Unit = {
+//    val futureResult = service.getGoogleBook(search = "isbn", term = "0345339703").value
+//
+//    // Wait for the future to complete and get the result
+//    val result = Await.result(futureResult, 5.seconds)
+//
+//    val completeBook = result match {
+//      case Right(book) => Ok(views.html.)
+//        // Handle the successful case, returning the book
+//        book
+//      case Left(error) =>
+//        // Handle the error case, possibly converting it to an appropriate response
+//        Status(error.httpResponseStatus)(Json.toJson(error.reason))
+//    }
+//
+//    println(completeBook)
+//  }
+
+  /** Call getgooglebook with ISBN complete  */
+    // browser url
+        // Take the ID from the call
+    // controller
+        //Use the controller to call the get book method in service with the ID and isbn
+    // service
+        // Service naturally calls the connector to actach to googlebooks
+    // connector
+        // Connector connects to google books
+    // Google Books
+        // Google books returns a book
+    // Connector
+        // Connector receives this and sends the succesful response to the service
+    // Service
+        // Service takes the Json and converts to a data model
+    // views
+    // service
+    // controller
+
 }

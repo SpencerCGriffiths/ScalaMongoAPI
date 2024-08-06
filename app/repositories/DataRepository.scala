@@ -25,13 +25,13 @@ trait DataRepositoryTrait {
   def read(id: Option[String], name: Option[String]): Future[Either[APIError, DataModel]]
   def update(id: String, book: DataModel): Future[Either[APIError, result.UpdateResult]]
   def delete(id: String): Future[Either[APIError, result.DeleteResult]]
-  def deleteAll(): Future[Unit]
+  def deleteAll(): Future[Either[APIError, Unit]]
 
   //^ Methods without a body are always abstract
 
-  // Helper methods for filtering
-  def byID(id: String): Bson = Filters.equal("_id", id)
-  def byName(name: String): Bson = Filters.equal("name", name)
+//  // Helper methods for filtering
+//  def byID(id: String): Bson = Filters.equal("_id", id)
+//  def byName(name: String): Bson = Filters.equal("name", name)
 }
 
 
@@ -80,12 +80,12 @@ class DataRepository @Inject()(
 
   }
 
-   private def byID(id: String): Bson =
+  private def byID(id: String): Bson =
     Filters.and(
       Filters.equal("_id", id)
     )
 
-   private def byName(name: String): Bson = {
+  private def byName(name: String): Bson = {
     Filters.and(
       Filters.equal("name", name)
     )
@@ -111,6 +111,7 @@ class DataRepository @Inject()(
       replacement = book,
       options = new ReplaceOptions().upsert(false)
     ).toFuture().map { updateResult =>
+      println(updateResult)
       Right(updateResult)
     }.recover {
       case _ => Left(APIError.DatabaseError("Error: Bad response from database"))
@@ -129,6 +130,13 @@ class DataRepository @Inject()(
   }
 
 
-  override def deleteAll(): Future[Unit] = collection.deleteMany(empty()).toFuture().map(_ => ()) //Hint: needed for tests
+  override def deleteAll(): Future[Either[APIError, Unit]] = {
+    collection.deleteMany(empty())
+      .toFuture()
+      .map { _ => Right(()) }
+      .recover {
+        case _ => Left(APIError.DatabaseError("Error: Bad response from database"))
+      }
+  } //Hint: needed for tests
 
 }
